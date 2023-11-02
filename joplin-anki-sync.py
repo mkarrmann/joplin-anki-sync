@@ -3,9 +3,7 @@
 import requests
 import json
 import re
-import hashlib
 import os
-import syslog
 
 PYTHONHASHSEED=None
 
@@ -133,9 +131,8 @@ def joplin_note_parser(note_name, note_id):
                     subheaders.append(re.sub(r'^##+ ', '', line))
             if re.search(rf'^{header} *$', line):
                 var=header
-        title = f"{note_name}  / {header.replace('# ', '')} {str(subheaders)}" 
-        content_hash = hashlib.md5(content.replace(' ', '').encode()).hexdigest()
-        headers_hash[title] = content_hash
+        title = f"{note_name}  / {header.replace('# ', '')} {str(subheaders)}" if subheaders else f"{note_name} / {header.replace('# ', '')}"
+        headers_hash[title] = content
     return headers_hash
 
 def joplin_folder_parser (folder_id):
@@ -210,7 +207,6 @@ def statistic():
     print(f"Deleted cards: {len(deleted)}")
     for card in deleted:
         print(" -", card)
-    syslog.syslog(f"Created: {len(created)}, Updated: {len(updated)}, Deleted: {len(deleted)}")
 
 config_parser()
 
