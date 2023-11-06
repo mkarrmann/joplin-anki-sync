@@ -118,19 +118,32 @@ def joplin_note_parser(note_name, note_id):
             continue
         if "==" in header:
             continue
-        var=None
-        content=''
+        content=None
         subheaders=[]
+        # TODO refactor this
         for line in markdown.split('\n'):
             if re.search(header_re, line):
-                if line not in comment_headers:
-                    var=None
-            if var != None:
+                if content is not None and line not in comment_headers:
+                    break
+            if content is not None:
+                if line.count('$') > 0 and line.count('$') % 2 == 0:
+                    str_builder = []
+                    in_formula = False
+                    for char in line:
+                        if char != '$':
+                            str_builder.append(char)
+                        else:
+                            if in_formula:
+                                str_builder.extend(['[', '/', '$', ']'])
+                            else:
+                                str_builder.extend(['[', '$', ']'])
+                            in_formula = not in_formula
+                    line = ''.join(str_builder)
                 content+=line
                 if re.search(r'^##+', line):
                     subheaders.append(re.sub(r'^##+ ', '', line))
-            if re.search(rf'^{header} *$', line):
-                var=header
+            if header == line:
+                content=''
         title = f"{note_name}  / {header.replace('# ', '')} {str(subheaders)}" if subheaders else f"{note_name} / {header.replace('# ', '')}"
         headers_hash[title] = content
     return headers_hash
