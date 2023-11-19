@@ -1,9 +1,8 @@
-#!/home/andrew/Documents/scripts/joplin-anki-sync/venv/bin/python3
-
 import requests
 import json
 import re
 import os
+from collections import defaultdict
 
 PYTHONHASHSEED = None
 
@@ -26,7 +25,6 @@ def config_parser():
     global excluded_notes
 
     # Joplin web clipper authorization token parsing
-    token_json = ""
     paths = (
         f'{os.getenv("HOME")}/.config/joplin-anki-sync/token.json',
         f'{os.getenv("PWD")}/token.json',
@@ -88,11 +86,25 @@ def config_parser():
         print(msg)
         exit()
 
+    config_folers = set(config_json["folders"])
+
+    # Assumes graph is a set of distinct trees
+    graph = defaultdict(list)
     for joplin_folder in response_json["items"]:
-        for config_folder in config_json["folders"]:
-            if joplin_folder["title"] == config_folder:
-                folders[f"{config_folder}"] = joplin_folder["id"]
-                break
+        if joplin_folder["parent_id"] is not None:
+            graph[joplin_folder["parent_id"]].append(joplin_folder)
+
+    for joplin_folder in response_json["items"]:
+        if joplin_folder["title"] in config_folers:
+            stack, root = [joplin_folder], joplin_folder["title"]
+            while stack:
+                node = stack.pop()
+                folders[f"{node['title']}"] = (
+                    node["id"],
+                    root,
+                )
+                if graph[node["id"]]:
+                    stack.extend(graph[node["id"]])
     excluded_headers = tuple(config_json["exclude_headers"])
     excluded_notes = tuple(config_json["exclude_notes"])
 
@@ -167,10 +179,11 @@ def joplin_note_parser(note_name, note_id):
 
 
 def joplin_folder_parser(folder_id):
-    response = requests.get(f"{joplin_origin}/folders/{folder_id}/notes?token={token}")
-    response_json = json.loads(response.content)
+    response = requests.get(
+        f"{joplin_origin}/folders/{folder_id}/notes?token={token}"
+    ).json()
     notes = {}
-    for note in response_json["items"]:
+    for note in response["items"]:
         note_title = note["title"]
         notes[note_title] = note["id"]
     return notes
@@ -260,7 +273,8 @@ config_parser()
 
 anki_cards: dict = {}
 joplin_notes: dict = {}
-for f_name, f_id in folders.items():
+for f_name in folders.keys():
+    f_id, root = folders[f_name]
     anki_cards |= anki_deck_parser(f_name)
     notes = joplin_folder_parser(f_id)
     for n_name, n_id in notes.items():
@@ -270,7 +284,7 @@ for f_name, f_id in folders.items():
         joplin_notes |= {
             title: (
                 content,
-                f_name,
+                root,
             )
             for title, content in new_notes.items()
         }
