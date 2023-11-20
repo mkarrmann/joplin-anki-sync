@@ -164,7 +164,7 @@ def joplin_note_parser(note_name, note_id):
                                 str_builder.extend(["[", "$", "]"])
                             in_formula = not in_formula
                     line = "".join(str_builder)
-                content += line
+                content += line + "<br>"
                 if re.search(r"^##+", line):
                     subheaders.append(re.sub(r"^##+ ", "", line))
             if header == line:
